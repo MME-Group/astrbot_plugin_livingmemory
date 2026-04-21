@@ -172,6 +172,44 @@
         "hint": "开启后每个会话的记忆独立存储，不同会话之间不共享记忆。",
         "type": "bool",
         "default": true
+      },
+      "umo_aggregation": {
+        "description": "UMO 聚合记忆",
+        "hint": "将多个 UMO 聚合为同一记忆组，共享长期记忆。",
+        "type": "object",
+        "items": {
+          "enabled": {
+            "description": "启用 UMO 聚合",
+            "hint": "开启后会根据下方聚合组配置将多个 UMO 映射到同一记忆组。",
+            "type": "bool",
+            "default": false
+          },
+          "groups": {
+            "description": "聚合组列表",
+            "hint": "点击右侧「+」添加新的聚合组。同组内的所有 UMO 会共享长期记忆。",
+            "type": "template_list",
+            "templates": {
+              "umo_group": {
+                "name": "聚合组",
+                "hint": "一个聚合组包含组 ID 和若干 UMO 成员",
+                "items": {
+                  "group_id": {
+                    "description": "聚合组 ID",
+                    "hint": "自定义标识，如 team_a、family、work。同组记忆会以此 ID 统一存储。",
+                    "type": "string",
+                    "default": ""
+                  },
+                  "umos": {
+                    "description": "组内 UMO 成员",
+                    "hint": "支持多行、逗号或空格分隔。每个 UMO 形如 platform:MessageType:session。\n示例：\naiocqhttp:GroupMessage:123456\naiocqhttp:FriendMessage:789",
+                    "type": "text",
+                    "default": ""
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   },

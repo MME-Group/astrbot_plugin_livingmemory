@@ -22,6 +22,8 @@ from .utils import (
     format_memories_for_fake_tool_call,
     format_memories_for_injection,
     get_persona_id,
+    resolve_memory_scope_candidates,
+    resolve_memory_scope_id,
 )
 
 
@@ -178,7 +180,20 @@ class EventHandler:
                 # 因此不能直接依赖 req.system_prompt 已注入人格，需自行走完整优先级。
                 persona_id = await get_persona_id(self.context, event)
 
-                recall_session_id = session_id if use_session_filtering else None
+                # UMO 聚合记忆作用域（仅影响记忆召回/存储，不影响会话上下文）
+                (
+                    memory_scope_id,
+                    scope_meta,
+                    recall_scope_candidates,
+                ) = resolve_memory_scope_candidates(session_id, filtering_config)
+                if scope_meta and memory_scope_id != session_id:
+                    logger.info(
+                        f"[{session_id}] UMO 聚合生效，记忆作用域 -> {memory_scope_id}"
+                    )
+
+                recall_session_id = (
+                    recall_scope_candidates if use_session_filtering else None
+                )
                 recall_persona_id = persona_id if use_persona_filtering else None
 
                 # 使用原始用户输入作为召回关键字
@@ -649,11 +664,26 @@ class EventHandler:
                     )
                     return
 
+                # UMO 聚合记忆作用域（仅用于记忆存储，不影响会话上下文）
+                filtering_config = self.config_manager.filtering_settings
+                memory_scope_id, scope_meta = resolve_memory_scope_id(
+                    session_id, filtering_config
+                )
+                if session_id:
+                    metadata.setdefault("source_session_id", session_id)
+                if scope_meta:
+                    for key, value in scope_meta.items():
+                        metadata.setdefault(key, value)
+                if scope_meta and memory_scope_id != session_id:
+                    logger.info(
+                        f"[{session_id}] 记忆将写入聚合组: {memory_scope_id}"
+                    )
+
                 # 正常流程：添加到记忆引擎
                 if self.memory_engine:
                     await self.memory_engine.add_memory(
                         content=content,
-                        session_id=session_id,
+                        session_id=memory_scope_id,
                         persona_id=persona_id,
                         importance=importance,
                         metadata=metadata,

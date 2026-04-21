@@ -13,7 +13,7 @@ from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
 
 from ..base.config_manager import ConfigManager
-from ..utils import get_persona_id
+from ..utils import get_persona_id, resolve_memory_scope_candidates
 
 
 def _json_result(data: dict[str, Any]) -> str:
@@ -103,7 +103,12 @@ class MemorySearchTool(FunctionTool[AstrAgentContext]):
                 else None
             )
 
-            recall_session_id = session_id if use_session_filtering else None
+            _, _, recall_scope_candidates = resolve_memory_scope_candidates(
+                session_id, filtering_config
+            )
+            recall_session_id = (
+                recall_scope_candidates if use_session_filtering else None
+            )
             recall_persona_id = persona_id if use_persona_filtering else None
 
             default_k = int(self.config_manager.get("recall_engine.top_k", 5))

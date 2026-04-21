@@ -65,7 +65,7 @@ async def test_memory_search_tool_uses_filtering_settings(memory_engine, astr_co
     memory_engine.search_memories.assert_awaited_once_with(
         query="喜欢的游戏",
         k=6,
-        session_id="test:private:session-1",
+        session_id=["test:private:session-1"],
         persona_id="persona_a",
     )
 
@@ -206,7 +206,7 @@ async def test_memory_search_tool_limits_k_by_config(memory_engine, astr_context
     memory_engine.search_memories.assert_awaited_once_with(
         query="偏好",
         k=4,
-        session_id="test:private:session-1",
+        session_id=["test:private:session-1"],
         persona_id="persona_a",
     )
 
@@ -265,7 +265,7 @@ async def test_memory_search_tool_falls_back_to_default_k_for_invalid_input(
     memory_engine.search_memories.assert_awaited_once_with(
         query="test query",
         k=3,
-        session_id="test:private:session-1",
+        session_id=["test:private:session-1"],
         persona_id="persona_a",
     )
 

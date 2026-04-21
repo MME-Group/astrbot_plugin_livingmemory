@@ -117,8 +117,9 @@ async def test_handle_search_validates_inputs_and_calls_engine(handler, mock_eve
 
     _ = [msg async for msg in handler.handle_search(mock_event, "hello", 200)]
     # k should be clamped to 100.
+    # UMO 聚合未启用时，候选列表仅包含当前 session_id
     handler.memory_engine.search_memories.assert_awaited_with(
-        query="hello", k=100, session_id=mock_event.unified_msg_origin
+        query="hello", k=100, session_id=[mock_event.unified_msg_origin]
     )
 
 

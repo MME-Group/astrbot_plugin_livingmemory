@@ -408,7 +408,7 @@ class MemoryEngine:
         self,
         query: str,
         k: int = 5,
-        session_id: str | None = None,
+        session_id: str | list[str] | None = None,
         persona_id: str | None = None,
     ) -> list[HybridResult]:
         """
@@ -417,7 +417,7 @@ class MemoryEngine:
         Args:
             query: 查询字符串
             k: 返回数量
-            session_id: 会话ID过滤(可选,应传入unified_msg_origin完整格式)
+            session_id: 会话ID过滤(可选，可传入 unified_msg_origin 或列表)
             persona_id: 人格ID过滤(可选)
 
         Returns:
@@ -426,29 +426,54 @@ class MemoryEngine:
         if not query or not query.strip():
             return []
 
-        # 如果session_id是unified_msg_origin格式，自动触发旧数据迁移
-        if session_id and ":" in session_id:
-            # 异步触发迁移，不阻塞查询
-            asyncio.create_task(self._migrate_session_data_if_needed(session_id))
+        async def _search_single(
+            target_session_id: str | None,
+        ) -> list[HybridResult]:
+            # 如果 session_id 是 unified_msg_origin 格式，自动触发旧数据迁移
+            if target_session_id and ":" in target_session_id:
+                asyncio.create_task(
+                    self._migrate_session_data_if_needed(target_session_id)
+                )
 
-        # 【关键修改】不再提取UUID，直接使用完整的unified_msg_origin进行匹配
-        # 因为现在数据库中存储的就是完整格式
-        # session_id 和 persona_id 保持原样传递给检索器
-
-        # 执行混合检索 / 双路检索
-        if self.dual_route_retriever is not None:
-            results = await self.dual_route_retriever.search(
-                query,
-                k,
-                session_id,
-                persona_id,
-            )
-        else:
+            # 【关键修改】不再提取UUID，直接使用完整的unified_msg_origin进行匹配
+            # 因为现在数据库中存储的就是完整格式
+            # session_id 和 persona_id 保持原样传递给检索器
+            if self.dual_route_retriever is not None:
+                return await self.dual_route_retriever.search(
+                    query,
+                    k,
+                    target_session_id,
+                    persona_id,
+                )
             if self.hybrid_retriever is None:
                 raise RuntimeError("混合检索器未初始化")
-            results = await self.hybrid_retriever.search(
-                query, k, session_id, persona_id
+            return await self.hybrid_retriever.search(
+                query, k, target_session_id, persona_id
             )
+
+        if isinstance(session_id, list):
+            merged: dict[int, HybridResult] = {}
+            candidate_ids = [s for s in session_id if s]
+            if candidate_ids:
+                sub_results = await asyncio.gather(
+                    *(_search_single(sid) for sid in candidate_ids),
+                    return_exceptions=True,
+                )
+                for sid, sub in zip(candidate_ids, sub_results):
+                    if isinstance(sub, BaseException):
+                        logger.warning(
+                            f"[UMO 聚合召回] 候选 session_id={sid} 检索失败: {sub}"
+                        )
+                        continue
+                    for result in sub:
+                        existing = merged.get(result.doc_id)
+                        if not existing or result.final_score > existing.final_score:
+                            merged[result.doc_id] = result
+            results = sorted(
+                merged.values(), key=lambda r: r.final_score, reverse=True
+            )[:k]
+        else:
+            results = await _search_single(session_id)
 
         # 异步更新访问时间(不阻塞返回)
         for result in results:

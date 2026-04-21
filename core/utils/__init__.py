@@ -233,6 +233,139 @@ async def get_persona_id(context: Context, event: AstrMessageEvent) -> str | Non
         return None
 
 
+def resolve_memory_scope_id(
+    session_id: str | None, filtering_config: dict[str, Any]
+) -> tuple[str | None, dict[str, Any]]:
+    """
+    根据过滤配置解析记忆作用域 ID（用于 UMO 聚合）。
+
+    Returns:
+        (scope_id, meta): scope_id 为最终记忆作用域；meta 为聚合元信息。
+    """
+    if not session_id:
+        return None, {}
+    if not isinstance(filtering_config, dict):
+        return session_id, {}
+
+    aggregation = filtering_config.get("umo_aggregation") or {}
+    if not isinstance(aggregation, dict) or not aggregation.get("enabled", False):
+        return session_id, {}
+
+    groups = aggregation.get("groups") or []
+
+    def normalize_umo_list(umos: Any) -> list[str]:
+        if isinstance(umos, str):
+            return [
+                item.strip()
+                for item in umos.replace(",", " ").split()
+                if item.strip()
+            ]
+        if isinstance(umos, list):
+            return [str(item).strip() for item in umos if str(item).strip()]
+        return []
+
+    if isinstance(groups, dict):
+        for group_id, umos in groups.items():
+            if not group_id:
+                continue
+            if session_id in normalize_umo_list(umos):
+                safe_group_id = str(group_id).replace(":", "_").replace("!", "_")
+                scope_id = f"umo_group__{safe_group_id}"
+                return scope_id, {
+                    "umo_group_id": group_id,
+                    "source_session_id": session_id,
+                }
+        return session_id, {}
+
+    if isinstance(groups, list):
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            group_id = (
+                group.get("group_id")
+                or group.get("id")
+                or group.get("name")
+                or ""
+            )
+            if not group_id:
+                continue
+            umos = normalize_umo_list(group.get("umos") or group.get("umo_list"))
+            if session_id in umos:
+                safe_group_id = str(group_id).replace(":", "_").replace("!", "_")
+                scope_id = f"umo_group__{safe_group_id}"
+                return scope_id, {
+                    "umo_group_id": group_id,
+                    "source_session_id": session_id,
+                }
+
+    return session_id, {}
+
+
+def resolve_memory_scope_candidates(
+    session_id: str | None, filtering_config: dict[str, Any]
+) -> tuple[str | None, dict[str, Any], list[str]]:
+    """
+    解析记忆作用域并返回候选 session_id 列表（用于聚合后的兼容召回）。
+    """
+    if not session_id:
+        return None, {}, []
+
+    scope_id, scope_meta = resolve_memory_scope_id(session_id, filtering_config)
+    if not scope_meta:
+        return scope_id, {}, [scope_id] if scope_id else []
+
+    group_id = scope_meta.get("umo_group_id")
+    if not group_id:
+        return scope_id, scope_meta, [scope_id] if scope_id else []
+
+    aggregation = filtering_config.get("umo_aggregation") or {}
+    if not isinstance(aggregation, dict):
+        return scope_id, scope_meta, [scope_id] if scope_id else []
+
+    groups = aggregation.get("groups") or []
+
+    def normalize_umo_list(umos: Any) -> list[str]:
+        if isinstance(umos, str):
+            return [
+                item.strip()
+                for item in umos.replace(",", " ").split()
+                if item.strip()
+            ]
+        if isinstance(umos, list):
+            return [str(item).strip() for item in umos if str(item).strip()]
+        return []
+
+    group_members: list[str] = []
+    if isinstance(groups, dict):
+        if group_id in groups:
+            group_members = normalize_umo_list(groups.get(group_id))
+    elif isinstance(groups, list):
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            gid = (
+                group.get("group_id")
+                or group.get("id")
+                or group.get("name")
+                or ""
+            )
+            if gid == group_id:
+                group_members = normalize_umo_list(
+                    group.get("umos") or group.get("umo_list")
+                )
+                break
+
+    candidates: list[str] = []
+    if scope_id:
+        candidates.append(scope_id)
+    for umo in group_members:
+        if umo and umo not in candidates:
+            candidates.append(umo)
+    if session_id not in candidates:
+        candidates.append(session_id)
+    return scope_id, scope_meta, candidates
+
+
 def extract_json_from_response(text: str) -> str:
     """
     从可能包含 Markdown 代码块的文本中提取纯 JSON 字符串。
@@ -568,6 +701,8 @@ __all__ = [
     "retry_on_failure",
     "OperationContext",
     "get_persona_id",
+    "resolve_memory_scope_id",
+    "resolve_memory_scope_candidates",
     "extract_json_from_response",
     "get_now_datetime",
     "get_now_datetime_from_context",
