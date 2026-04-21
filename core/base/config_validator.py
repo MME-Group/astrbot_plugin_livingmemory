@@ -128,6 +128,15 @@ class FilteringConfig(BaseModel):
     use_session_filtering: bool = Field(default=True, description="是否使用会话过滤")
 
 
+class ActiveMemoryToolsConfig(BaseModel):
+    """Agent 主动记忆工具配置"""
+
+    enable_save_tool: bool = Field(
+        default=False,
+        description="是否启用 save_long_term_memory 主动保存工具",
+    )
+
+
 class ProviderConfig(BaseModel):
     """Provider配置"""
 
@@ -221,6 +230,9 @@ class LivingMemoryConfig(BaseModel):
         default_factory=ForgettingAgentConfig
     )
     filtering_settings: FilteringConfig = Field(default_factory=FilteringConfig)
+    active_memory_tools: ActiveMemoryToolsConfig = Field(
+        default_factory=ActiveMemoryToolsConfig
+    )
     provider_settings: ProviderConfig = Field(default_factory=ProviderConfig)
     webui_settings: WebUISettings = Field(default_factory=WebUISettings)
     migration_settings: MigrationSettings = Field(default_factory=MigrationSettings)

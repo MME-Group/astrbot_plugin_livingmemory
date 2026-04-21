@@ -17,7 +17,7 @@ from .core.base.config_manager import ConfigManager
 from .core.command_handler import CommandHandler
 from .core.event_handler import EventHandler
 from .core.plugin_initializer import PluginInitializer
-from .core.tools import MemorySearchTool
+from .core.tools import MemorySaveTool, MemorySearchTool
 from .webui import WebUIServer
 
 
@@ -134,13 +134,26 @@ class LivingMemoryPlugin(Star):
         if not self.initializer.memory_engine:
             return
 
-        self.context.add_llm_tools(
+        tools: list[Any] = [
             MemorySearchTool(
                 context=self.context,
                 config_manager=self.config_manager,
                 memory_engine=self.initializer.memory_engine,
             ),
-        )
+        ]
+
+        if self.config_manager.active_memory_tools.get("enable_save_tool", False):
+            tools.append(
+                MemorySaveTool(
+                    context=self.context,
+                    config_manager=self.config_manager,
+                    memory_engine=self.initializer.memory_engine,
+                )
+            )
+        else:
+            logger.info("save_long_term_memory 工具已在配置中禁用，跳过注册")
+
+        self.context.add_llm_tools(*tools)
         self._llm_tools_registered = True
 
     async def _ensure_plugin_ready(self) -> tuple[bool, str]:

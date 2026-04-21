@@ -82,6 +82,19 @@
       }
     }
   },
+  "active_memory_tools": {
+    "description": "Agent 主动记忆工具",
+    "hint": "控制暴露给 LLM Agent 的长期记忆工具（除被动总结外的主动写入能力）",
+    "type": "object",
+    "items": {
+      "enable_save_tool": {
+        "description": "启用 save_long_term_memory 工具",
+        "hint": "开启后 Agent 可主动调用 save_long_term_memory 把重要信息写入长期记忆；关闭后仅依赖被动对话轮次总结。默认关闭，如需让 Agent 主动写入长期记忆请手动打开。",
+        "type": "bool",
+        "default": false
+      }
+    }
+  },
   "recall_engine": {
     "description": "记忆召回",
     "hint": "控制记忆检索和注入到对话的行为",

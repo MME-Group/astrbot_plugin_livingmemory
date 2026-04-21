@@ -115,6 +115,11 @@ class ConfigManager:
         return self.get_section("filtering_settings")
 
     @property
+    def active_memory_tools(self) -> dict[str, Any]:
+        """Agent 主动记忆工具设置"""
+        return self.get_section("active_memory_tools")
+
+    @property
     def graph_memory(self) -> dict[str, Any]:
         """Graph-memory settings."""
         return self.get_section("graph_memory")

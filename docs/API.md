@@ -299,6 +299,48 @@ async for message in command_handler.handle_status(event):
 - `create_time`
 - `last_access_time`
 
+---
+
+### MemorySaveTool
+
+供 tool loop / agent 主动保存长期记忆的工具。
+
+#### 工具名
+
+`save_long_term_memory`
+
+#### 行为
+
+- Agent 在对话中判断需要长期记住某个事实时主动调用。
+- 写入作用域使用当前会话的 `unified_msg_origin` 与当前人格。
+- metadata 自动带上 `source="llm_tool_save"` 与 `triggered_by="save_long_term_memory"`，便于审计区分“主动写入”与“反思引擎写入”。
+- 与被动反思总结**独立运行**，两条路径各自写入，同一事实可能出现冗余（计划在后续版本中加入轻量级语义去重）。
+
+#### 输入参数
+
+- `content: str`（必填）- 简洁、自包含的第三人称总结，建议 <200 字，不要直接复制整句用户输入。
+- `importance: float = 0.7` - 重要性，范围 [0.0, 1.0]；超出范围会被 clamp，非法值（字符串、NaN 等）会回退到 0.7。
+
+#### 返回结果
+
+返回 JSON 文本：
+
+- 成功：
+  ```json
+  {
+    "saved": true,
+    "id": 123,
+    "importance": 0.7,
+    "session_id": "aiocqhttp:GroupMessage:xxx",
+    "persona_id": "persona_a"
+  }
+  ```
+- 失败：
+  ```json
+  {"saved": false, "error": "content is empty"}
+  ```
+  其他可能的 `error` 值：`memory save tool is not initialized`、`internal_error`。
+
 ##### `async handle_forget(event: AstrMessageEvent, doc_id: int)`
 
 处理 `/lmem forget` 命令，删除指定记忆。
